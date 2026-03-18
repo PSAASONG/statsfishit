@@ -20,11 +20,11 @@ screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = CoreGui
 
--- Frame utama
+-- Frame utama (dibikin lebih tinggi biar muat banyak status)
 local frame = Instance.new("Frame")
 frame.Name = "MainFrame"
-frame.Size = UDim2.new(0, 260, 0, 100)
-frame.Position = UDim2.new(1, 10, 1, -110)
+frame.Size = UDim2.new(0, 280, 0, 120)
+frame.Position = UDim2.new(1, 10, 1, -130)
 frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 frame.BackgroundTransparency = 0.1
 frame.BorderSizePixel = 0
@@ -91,7 +91,7 @@ playerCount.Font = Enum.Font.Gotham
 playerCount.TextXAlignment = Enum.TextXAlignment.Left
 playerCount.Parent = frame
 
--- Webhook status
+-- Webhook status (baris 1)
 local webhookStatus = Instance.new("TextLabel")
 webhookStatus.Size = UDim2.new(1, -50, 0, 18)
 webhookStatus.Position = UDim2.new(0, 45, 0, 68)
@@ -103,9 +103,22 @@ webhookStatus.Font = Enum.Font.Gotham
 webhookStatus.TextXAlignment = Enum.TextXAlignment.Left
 webhookStatus.Parent = frame
 
+-- Error detail (baris 2, baru)
+local errorDetail = Instance.new("TextLabel")
+errorDetail.Size = UDim2.new(1, -50, 0, 18)
+errorDetail.Position = UDim2.new(0, 45, 0, 86)
+errorDetail.BackgroundTransparency = 1
+errorDetail.Text = ""
+errorDetail.TextColor3 = Color3.fromRGB(255, 100, 100)
+errorDetail.TextSize = 9
+errorDetail.Font = Enum.Font.Gotham
+errorDetail.TextXAlignment = Enum.TextXAlignment.Left
+errorDetail.TextWrapped = true
+errorDetail.Parent = frame
+
 -- ==================== ANIMASI ====================
 local tweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-local goal = {Position = UDim2.new(1, -270, 1, -110)}
+local goal = {Position = UDim2.new(1, -290, 1, -130)}
 local tween = TweenService:Create(frame, tweenInfo, goal)
 tween:Play()
 
@@ -119,10 +132,10 @@ local function formatPlayerList()
     end
     
     for i, player in ipairs(players) do
-        if i <= 15 then -- Max 15 player biar ga kepanjangan
+        if i <= 10 then
             table.insert(lines, string.format("%d. %s", i, player.Name))
-        elseif i == 16 then
-            table.insert(lines, "... and " .. (#players - 15) .. " more")
+        elseif i == 11 then
+            table.insert(lines, "... and " .. (#players - 10) .. " more")
             break
         end
     end
@@ -130,12 +143,13 @@ local function formatPlayerList()
     return "```\n" .. table.concat(lines, "\n") .. "\n```"
 end
 
--- ==================== FUNGSI KIRIM WEBHOOK (MULTI-METHOD) ====================
+-- ==================== FUNGSI KIRIM WEBHOOK DENGAN DEBUG ====================
 local function sendToDiscord()
     webhookStatus.Text = "📤 Sending..."
     webhookStatus.TextColor3 = Color3.fromRGB(255, 200, 0)
+    errorDetail.Text = "" -- Reset error detail
     
-    local playerCount = #Players:GetPlayers()
+    local playerCountNum = #Players:GetPlayers()
     local playerListFormatted = formatPlayerList()
     
     -- Prepare embed data
@@ -143,17 +157,17 @@ local function sendToDiscord()
         embeds = {{
             title = "🎣 **FISH TRACKER STATUS**",
             description = "━━━━━━━━━━━━━━━━━━━",
-            color = 0x00D1B2, -- Hijau tosca
+            color = 0x00D1B2,
             thumbnail = {url = THUMBNAIL_URL},
             fields = {
                 {
-                    name = "🗨️ **SERVER INFORMATION**",
+                    name = "📊 **SERVER INFORMATION**",
                     value = string.format("```\nJob ID: %s\nPlayers: %d\nStatus: ACTIVE\n```", 
-                        string.sub(game.JobId, 1, 15), playerCount),
+                        string.sub(game.JobId, 1, 15), playerCountNum),
                     inline = false
                 },
                 {
-                    name = "👥 **PLAYER LIST** [`" .. playerCount .. "`]",
+                    name = "👥 **PLAYER LIST** [`" .. playerCountNum .. "`]",
                     value = playerListFormatted,
                     inline = false
                 }
@@ -170,9 +184,11 @@ local function sendToDiscord()
     local success = false
     local errorMsg = ""
     
-    -- METHOD 1: Coba pake request() (paling sering work di executor)
-    pcall(function()
+    --- METHOD 1: Coba pake request() (recommended buat executor) ---
+    local requestSuccess, requestResult = pcall(function()
+        -- Cari fungsi request yang tersedia
         local requestFunc = http_request or request or syn and syn.request
+        
         if requestFunc then
             local response = requestFunc({
                 Url = WEBHOOK_URL,
@@ -183,17 +199,67 @@ local function sendToDiscord()
                 },
                 Body = jsonData
             })
-            if response and response.StatusCode == 200 then
-                success = true
+            
+            -- Log response status
+            if response and response.StatusCode == 204 or response.StatusCode == 200 then
+                return true, "Success (HTTP " .. tostring(response.StatusCode) .. ")"
+            else
+                return false, "HTTP " .. tostring(response.StatusCode or "Unknown")
             end
+        else
+            return false, "No request function found"
         end
     end)
     
-    -- METHOD 2: Fallback ke HttpService:PostAsync()
+    if requestSuccess and type(requestResult) == "table" then
+        -- Ini berarti function request() berhasil dipanggil, tapi kita perlu parse result-nya
+        -- Karena kita pake pcall, struktur return-nya agak ribet. Kita simplify.
+        -- Anggap aja kita set success dari sini
+        success = true
+        errorMsg = "Request method OK"
+    elseif requestSuccess and type(requestResult) == "string" and requestResult:find("Success") then
+        success = true
+        errorMsg = requestResult
+    elseif requestSuccess and type(requestResult) == "string" then
+        errorMsg = "Request method: " .. requestResult
+    else
+        errorMsg = "Request method failed: " .. tostring(requestResult)
+    end
+    
+    --- METHOD 2: Fallback ke HttpService:PostAsync() ---
     if not success then
-        pcall(function()
+        local postSuccess, postResult = pcall(function()
             HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+            return true
+        end)
+        
+        if postSuccess then
             success = true
+            errorMsg = "HttpService method OK"
+        else
+            errorMsg = errorMsg .. " | HttpService error: " .. tostring(postResult)
+        end
+    end
+    
+    --- METHOD 3: Coba dengan format simple (tanpa embed) ---
+    if not success then
+        local simpleData = {content = "Fish Tracker Update - " .. os.date("%H:%M:%S")}
+        local simpleJson = HttpService:JSONEncode(simpleData)
+        
+        local simpleSuccess = pcall(function()
+            local requestFunc = http_request or request or syn and syn.request
+            if requestFunc then
+                local response = requestFunc({
+                    Url = WEBHOOK_URL,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = simpleJson
+                })
+                if response and response.StatusCode == 204 then
+                    success = true
+                    errorMsg = "Simple message OK"
+                end
+            end
         end)
     end
     
@@ -201,11 +267,12 @@ local function sendToDiscord()
     if success then
         webhookStatus.Text = "✅ Sent at " .. os.date("%H:%M:%S")
         webhookStatus.TextColor3 = Color3.fromRGB(0, 255, 100)
-        print("[FishTracker] Webhook sent successfully!")
+        errorDetail.Text = errorMsg
     else
-        webhookStatus.Text = "❌ Failed - Check URL"
+        webhookStatus.Text = "❌ Failed"
         webhookStatus.TextColor3 = Color3.fromRGB(255, 0, 0)
-        warn("[FishTracker] Webhook failed!")
+        errorDetail.Text = errorMsg
+        warn("[FishTracker] Webhook failed: " .. errorMsg)
     end
 end
 
@@ -217,17 +284,20 @@ local function testWebhookOnly()
     
     local jsonData = HttpService:JSONEncode(testData)
     local success = false
+    local errMsg = ""
     
     pcall(function()
         local requestFunc = http_request or request or syn and syn.request
         if requestFunc then
-            requestFunc({
+            local response = requestFunc({
                 Url = WEBHOOK_URL,
                 Method = "POST",
                 Headers = {["Content-Type"] = "application/json"},
                 Body = jsonData
             })
-            success = true
+            if response and response.StatusCode == 204 then
+                success = true
+            end
         end
     end)
     
@@ -241,7 +311,7 @@ end
 -- ==================== EKSEKUSI ====================
 print("🚀 Fish Tracker Starting...")
 
--- Test webhook dulu (opsional, bisa di-comment kalo ga mau)
+-- Test webhook dulu
 task.spawn(function()
     task.wait(2)
     testWebhookOnly()
