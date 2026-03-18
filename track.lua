@@ -1,6 +1,6 @@
 -- Configuration (UBAH INI!)
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1483891339564155023/c3C0hi14rCYegmtgjhn4Y34NoWEcJleKjL3bhwzI90BILuAfJPICWO-gKaqjNEMyD7Pa" -- Ganti dengan webhook lu
-local THUMBNAIL_URL = "https://files.catbox.moe/g447uo.jpg" -- Ganti dengan thumbnail lu
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1483891339564155023/c3C0hi14rCYegmtgjhn4Y34NoWEcJleKjL3bhwzI90BILuAfJPICWO-gKaqjNEMyD7Pa"
+local THUMBNAIL_URL = "https://files.catbox.moe/g447uo.jpg"
 
 -- Services
 local Players = game:GetService("Players")
@@ -37,19 +37,6 @@ stroke.Color = Color3.fromRGB(0, 255, 100)
 stroke.Transparency = 0.3
 stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 stroke.Parent = frame
-
--- Shadow
-local shadow = Instance.new("ImageLabel")
-shadow.Name = "Shadow"
-shadow.BackgroundTransparency = 1
-shadow.Size = UDim2.new(1, 20, 1, 20)
-shadow.Position = UDim2.new(0, -10, 0, -10)
-shadow.Image = "rbxassetid://1316045217"
-shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-shadow.ImageTransparency = 0.6
-shadow.ScaleType = Enum.ScaleType.Slice
-shadow.SliceCenter = Rect.new(10, 10, 10, 10)
-shadow.Parent = frame
 
 -- Icon
 local iconLabel = Instance.new("TextLabel")
@@ -114,7 +101,7 @@ local function getPlayerStats(player)
     local rarestFish = "0"
     local caught = 0
     
-    local success, result = pcall(function()
+    pcall(function()
         local leaderstats = player:FindFirstChild("leaderstats")
         if leaderstats then
             local rarest = leaderstats:FindFirstChild("Rarest Fish")
@@ -151,6 +138,8 @@ end
 
 -- Fungsi kirim ke Discord
 local function sendToDiscord()
+    print("[FishTracker] Mencoba kirim ke Discord...")
+    
     local players = Players:GetPlayers()
     local playerList = buildPlayerList()
     
@@ -177,7 +166,7 @@ local function sendToDiscord()
                 inline = false
             },
             {
-                name = "👥 Player List",
+                name = "🌐 Player List",
                 value = playerList,
                 inline = false
             }
@@ -186,25 +175,31 @@ local function sendToDiscord()
     }
     
     local data = {
-        embeds = {embed}
+        embeds = {embed},
+        content = "@everyone Fish Tracker Update" -- Optional ping
     }
     
     local jsonData = HttpService:JSONEncode(data)
     
-    local success = pcall(function()
-        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+    -- Pake pcall untuk handle error
+    local success, result = pcall(function()
+        return HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson, false) -- false = no compress
     end)
     
-    if not success then
-        warn("[FishTracker] Gagal kirim ke Discord")
+    if success then
+        print("[FishTracker] ✅ Berhasil kirim ke Discord! Player: " .. #players)
+        print("[FishTracker] Response: " .. tostring(result))
     else
-        print("[FishTracker] Berhasil kirim ke Discord")
+        warn("[FishTracker] ❌ Gagal kirim ke Discord: " .. tostring(result))
     end
 end
 
--- Kirim saat pertama kali (delay biar game load dulu)
+-- Kirim saat pertama kali dengan delay lebih panjang
 task.spawn(function()
-    task.wait(3)
+    print("[FishTracker] Delay 5 detik sebelum kirim pertama...")
+    task.wait(5) -- Delay lebih lama biar game fully loaded
+    
+    print("[FishTracker] Mengirim data pertama...")
     sendToDiscord()
 end)
 
@@ -219,25 +214,31 @@ end)
 
 -- Kirim ke Discord setiap 15 menit
 task.spawn(function()
-    while task.wait(900) do
+    while true do
+        task.wait(900) -- 15 menit = 900 detik
+        print("[FishTracker] Interval 15 menit, mengirim ulang...")
         sendToDiscord()
     end
 end)
 
 -- Handle player added/removed
-local function onPlayerAdded()
+local function onPlayerAdded(player)
     if frame and frame.Parent then
         statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
     end
+    print("[FishTracker] Player added: " .. player.Name)
 end
 
-local function onPlayerRemoving()
+local function onPlayerRemoving(player)
     if frame and frame.Parent then
         statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
     end
+    print("[FishTracker] Player removed: " .. player.Name)
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 Players.PlayerRemoving:Connect(onPlayerRemoving)
 
-print("✅ Fish Tracker Active - Running on Delta Executor")
+print("🚀 Fish Tracker Active - Running on Delta Executor")
+print("🌐 Webhook: " .. WEBHOOK_URL)
+print("⏱️ Interval: 15 menit")
