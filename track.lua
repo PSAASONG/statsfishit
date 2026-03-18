@@ -1,123 +1,243 @@
-local HttpService = game:GetService("HttpService")
+-- Configuration (UBAH INI!)
+local WEBHOOK_URL = "https://discord.com/api/webhooks/1483891339564155023/c3C0hi14rCYegmtgjhn4Y34NoWEcJleKjL3bhwzI90BILuAfJPICWO-gKaqjNEMyD7Pa" -- Ganti dengan webhook lu
+local THUMBNAIL_URL = "https://files.catbox.moe/g447uo.jpg" -- Ganti dengan thumbnail lu
+
+-- Services
 local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
 
-local player = Players.LocalPlayer
+-- ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FishTrackerUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.Parent = CoreGui
 
-local WEBHOOK_URL = "https://discord.com/api/webhooks/1483891339564155023/c3C0hi14rCYegmtgjhn4Y34NoWEcJleKjL3bhwzI90BILuAfJPICWO-gKaqjNEMyD7Pa"
-local THUMBNAIL_URL = "https://files.catbox.moe/g447uo.jpg"
-
--- ================= UI =================
-local gui = Instance.new("ScreenGui")
-gui.Name = "TrackerUI"
-gui.ResetOnSpawn = false
-gui.Parent = player:WaitForChild("PlayerGui")
-
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 260, 0, 60)
-frame.Position = UDim2.new(1, 300, 1, -80)
-frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+-- Frame utama
+local frame = Instance.new("Frame")
+frame.Name = "MainFrame"
+frame.Size = UDim2.new(0, 260, 0, 70)
+frame.Position = UDim2.new(1, 10, 1, -80)
+frame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+frame.BackgroundTransparency = 0.1
 frame.BorderSizePixel = 0
+frame.ClipsDescendants = true
 
-Instance.new("UICorner", frame).CornerRadius = UDim.new(0,12)
+-- Rounded corners
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = frame
 
-local stroke = Instance.new("UIStroke", frame)
-stroke.Color = Color3.fromRGB(0,255,120)
+-- Stroke (border glow)
+local stroke = Instance.new("UIStroke")
 stroke.Thickness = 2
+stroke.Color = Color3.fromRGB(0, 255, 100)
 stroke.Transparency = 0.3
+stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+stroke.Parent = frame
 
-local text = Instance.new("TextLabel", frame)
-text.Size = UDim2.new(1,0,1,0)
-text.BackgroundTransparency = 1
-text.Text = "🟢 TRACKER ACTIVE"
-text.TextColor3 = Color3.new(1,1,1)
-text.TextScaled = true
-text.Font = Enum.Font.GothamBold
+-- Shadow
+local shadow = Instance.new("ImageLabel")
+shadow.Name = "Shadow"
+shadow.BackgroundTransparency = 1
+shadow.Size = UDim2.new(1, 20, 1, 20)
+shadow.Position = UDim2.new(0, -10, 0, -10)
+shadow.Image = "rbxassetid://1316045217"
+shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+shadow.ImageTransparency = 0.6
+shadow.ScaleType = Enum.ScaleType.Slice
+shadow.SliceCenter = Rect.new(10, 10, 10, 10)
+shadow.Parent = frame
 
--- animasi masuk
-frame:TweenPosition(UDim2.new(1, -270, 1, -80), "Out", "Quad", 0.6, true)
+-- Icon
+local iconLabel = Instance.new("TextLabel")
+iconLabel.Name = "Icon"
+iconLabel.Size = UDim2.new(0, 40, 1, 0)
+iconLabel.Position = UDim2.new(0, 5, 0, 0)
+iconLabel.BackgroundTransparency = 1
+iconLabel.Text = "🎣"
+iconLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+iconLabel.TextScaled = true
+iconLabel.Font = Enum.Font.GothamBold
+iconLabel.Parent = frame
 
--- ================= FORMAT =================
-local function formatRareFish(value)
-    if typeof(value) ~= "number" or value <= 0 then return "N/A" end
-    if value >= 1e6 then
-        return "1/"..string.format("%.1f",value/1e6):gsub("%.0","").."M"
-    elseif value >= 1e3 then
-        return "1/"..string.format("%.1f",value/1e3):gsub("%.0","").."K"
+-- Text utama
+local mainText = Instance.new("TextLabel")
+mainText.Name = "MainText"
+mainText.Size = UDim2.new(1, -50, 0, 22)
+mainText.Position = UDim2.new(0, 45, 0, 10)
+mainText.BackgroundTransparency = 1
+mainText.Text = "🟢 FISH TRACKER ACTIVE"
+mainText.TextColor3 = Color3.fromRGB(0, 255, 100)
+mainText.TextSize = 14
+mainText.Font = Enum.Font.GothamBold
+mainText.TextXAlignment = Enum.TextXAlignment.Left
+mainText.Parent = frame
+
+-- Status text
+local statusText = Instance.new("TextLabel")
+statusText.Name = "StatusText"
+statusText.Size = UDim2.new(1, -50, 0, 18)
+statusText.Position = UDim2.new(0, 45, 0, 35)
+statusText.BackgroundTransparency = 1
+statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
+statusText.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusText.TextSize = 11
+statusText.Font = Enum.Font.Gotham
+statusText.TextXAlignment = Enum.TextXAlignment.Left
+statusText.Parent = frame
+
+frame.Parent = screenGui
+
+-- Animasi masuk
+local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local goal = {Position = UDim2.new(1, -270, 1, -80)}
+local tween = TweenService:Create(frame, tweenInfo, goal)
+tween:Play()
+
+-- Fungsi format angka
+local function formatNumber(num)
+    if type(num) ~= "number" then return "0" end
+    if num >= 1000000 then
+        return string.format("1/%.1fM", num / 1000000)
+    elseif num >= 1000 then
+        return string.format("1/%.1fK", num / 1000)
     else
-        return "1/"..value
+        return "1/" .. tostring(num)
     end
 end
 
--- ================= WEBHOOK =================
-local function sendWebhook()
-    local list = {}
-
-    for i,p in ipairs(Players:GetPlayers()) do
-        local rareFish, caught = "N/A","N/A"
-        local ls = p:FindFirstChild("leaderstats")
-
-        if ls then
-            local rf = ls:FindFirstChild("Rarest Fish")
-            if rf then
-                rareFish = typeof(rf.Value)=="number" and formatRareFish(rf.Value) or tostring(rf.Value)
+-- Fungsi get player stats
+local function getPlayerStats(player)
+    local rarestFish = "0"
+    local caught = 0
+    
+    local success, result = pcall(function()
+        local leaderstats = player:FindFirstChild("leaderstats")
+        if leaderstats then
+            local rarest = leaderstats:FindFirstChild("Rarest Fish")
+            if rarest and rarest.Value then
+                rarestFish = formatNumber(rarest.Value)
             end
-
-            local ct = ls:FindFirstChild("Caught")
-            if ct then
-                caught = tostring(ct.Value)
+            
+            local caughtStat = leaderstats:FindFirstChild("Caught")
+            if caughtStat and caughtStat.Value then
+                caught = caughtStat.Value
             end
         end
-
-        table.insert(list,
-            "🔹 **"..p.Name.."**\n└  "..rareFish.." |  "..caught
-        )
-    end
-
-    local data = {
-        embeds = {{
-            author = {
-                name = "Dungeon Tracker",
-                icon_url = THUMBNAIL_URL
-            },
-
-            title = "🎣 Fish Tracker Status",
-
-            description = "```ansi\n\u001b[32m TRACKER ACTIVE\u001b[0m\n```",
-
-            color = 16753920,
-            thumbnail = {url = THUMBNAIL_URL},
-
-            fields = {
-                {
-                    name = "🗨️ Server Info",
-                    value = "Players: **"..#Players:GetPlayers().."**",
-                    inline = false
-                },
-                {
-                    name = "👥 Player List",
-                    value = (#list>0 and table.concat(list,"\n\n") or "No players"),
-                    inline = false
-                }
-            },
-
-            footer = {
-                text = "Trackers by Dungeon • 15 min"
-            },
-
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-
-    pcall(function()
-        HttpService:PostAsync(WEBHOOK_URL, HttpService:JSONEncode(data))
     end)
+    
+    return rarestFish, caught
 end
 
--- ================= START =================
-task.wait(5)
-sendWebhook()
-
-while true do
-    task.wait(900)
-    sendWebhook()
+-- Fungsi build player list string
+local function buildPlayerList()
+    local players = Players:GetPlayers()
+    local list = {}
+    
+    for _, player in ipairs(players) do
+        local rarest, caught = getPlayerStats(player)
+        table.insert(list, string.format("🔹 %s\n└ 🔝 %s | 🐟 %d", player.Name, rarest, caught))
+    end
+    
+    if #list == 0 then
+        return "No players online"
+    end
+    
+    return table.concat(list, "\n")
 end
+
+-- Fungsi kirim ke Discord
+local function sendToDiscord()
+    local players = Players:GetPlayers()
+    local playerList = buildPlayerList()
+    
+    -- Batasi panjang field Discord (max 1024 characters)
+    if #playerList > 1000 then
+        playerList = string.sub(playerList, 1, 1000) .. "..."
+    end
+    
+    local embed = {
+        title = "🎣 Fish Tracker Status",
+        description = "🟢 TRACKER ACTIVE",
+        color = 0x00D1B2,
+        author = {
+            name = "Dungeon Tracker",
+            icon_url = THUMBNAIL_URL
+        },
+        thumbnail = {
+            url = THUMBNAIL_URL
+        },
+        fields = {
+            {
+                name = "🗨️ Server Info",
+                value = "Total Players: **" .. #players .. "**",
+                inline = false
+            },
+            {
+                name = "👥 Player List",
+                value = playerList,
+                inline = false
+            }
+        },
+        timestamp = DateTime.now():ToIsoDate()
+    }
+    
+    local data = {
+        embeds = {embed}
+    }
+    
+    local jsonData = HttpService:JSONEncode(data)
+    
+    local success = pcall(function()
+        HttpService:PostAsync(WEBHOOK_URL, jsonData, Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    if not success then
+        warn("[FishTracker] Gagal kirim ke Discord")
+    else
+        print("[FishTracker] Berhasil kirim ke Discord")
+    end
+end
+
+-- Kirim saat pertama kali (delay biar game load dulu)
+task.spawn(function()
+    task.wait(3)
+    sendToDiscord()
+end)
+
+-- Update status text setiap detik
+task.spawn(function()
+    while task.wait(1) do
+        if frame and frame.Parent then
+            statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
+        end
+    end
+end)
+
+-- Kirim ke Discord setiap 15 menit
+task.spawn(function()
+    while task.wait(900) do
+        sendToDiscord()
+    end
+end)
+
+-- Handle player added/removed
+local function onPlayerAdded()
+    if frame and frame.Parent then
+        statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
+    end
+end
+
+local function onPlayerRemoving()
+    if frame and frame.Parent then
+        statusText.Text = "Monitoring " .. #Players:GetPlayers() .. " players"
+    end
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+Players.PlayerRemoving:Connect(onPlayerRemoving)
+
+print("✅ Fish Tracker Active - Running on Delta Executor")
