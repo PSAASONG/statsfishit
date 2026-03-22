@@ -136,7 +136,7 @@ local function sendToDiscord()
     local embedData = {
         embeds = {{
             title = "🎣 **FISH TRACKER**",
-            description = string.format(" **ACTIVE**\n━━━━━━━━━━━━━━━━━━━\n🗨️ **Server:** `%s`\n👥 **Total Players:** `%d`", 
+            description = string.format(" **ACTIVE**\nSERVER 2 ! \n🗨️ **Server:** `%s`\n👥 **Total Players:** `%d`", 
                 fullJobId, playerCountNum),
             color = 0x00D1B2,
             thumbnail = {url = THUMBNAIL_URL},
